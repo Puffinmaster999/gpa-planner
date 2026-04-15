@@ -1,24 +1,12 @@
-"""
-scale.py — GPA point conversion table.
-
-Maps a course percentage to GPA points depending on course level (AP / Honors / CP).
-These thresholds match the school's official weighted GPA scale.
-
-Example:
-  93%+ in AP  → 4.7 points
-  90%+ in CP  → 3.5 points
-  Below 65%   → 0.0 points (failing)
-"""
+"""Grading scale: min course % -> GPA points (AP / Honors / CP)."""
 
 from __future__ import annotations
 
 from typing import Literal
 
-# The three course levels the school uses
 Level = Literal["AP", "Honors", "CP"]
 
-# Each row is: (minimum %, (AP points, Honors points, CP points))
-# Listed from highest to lowest — the first row your % qualifies for wins.
+# Descending min_grade thresholds from the "Math" tab (PDF).
 _ROWS: list[tuple[float, tuple[float, float, float]]] = [
     (98.0, (5.0, 4.5, 4.0)),
     (93.0, (4.7, 4.2, 3.7)),
@@ -30,18 +18,13 @@ _ROWS: list[tuple[float, tuple[float, float, float]]] = [
     (73.0, (3.0, 2.5, 2.0)),
     (70.0, (2.7, 2.2, 1.7)),
     (65.0, (2.0, 1.5, 1.0)),
-    (0.0,  (0.0, 0.0, 0.0)),  # Failing / below 65
+    (0.0, (0.0, 0.0, 0.0)),
 ]
 
-# Just the threshold percentages in ascending order (used to find the "next bracket up")
 _THRESHOLDS_ASC: list[float] = sorted({r[0] for r in _ROWS if r[0] > 0}, reverse=False)
 
 
 def normalize_level(level: str) -> Level:
-    """
-    Converts various spellings of course levels to the standard "AP", "Honors", or "CP".
-    Raises ValueError if the level isn't recognized.
-    """
     s = level.strip()
     low = s.lower()
     if low in ("ap", "a.p.", "advanced placement"):
@@ -54,19 +37,15 @@ def normalize_level(level: str) -> Level:
 
 
 def _points_for_row(level: Level, row: tuple[float, float, float]) -> float:
-    """Picks the right GPA points from a scale row based on course level."""
     if level == "AP":
         return row[0]
     if level == "Honors":
         return row[1]
-    return row[2]  # CP
+    return row[2]
 
 
 def gpa_points(level: Level | str, pct: float) -> float:
-    """
-    Returns the GPA points earned for a given course % and level.
-    Scans the scale from top to bottom and returns the first row the % qualifies for.
-    """
+    """GPA points for course percentage: highest threshold <= pct."""
     if isinstance(level, str):
         level = normalize_level(level)
     for min_grade, trip in _ROWS:
@@ -76,11 +55,7 @@ def gpa_points(level: Level | str, pct: float) -> float:
 
 
 def next_threshold_pct(current_final_pct: float) -> float | None:
-    """
-    Returns the next GPA bracket threshold above your current final %.
-    For example: if you're at 91%, the next threshold is 93%.
-    Returns None if you're already at the top bracket (98%+).
-    """
+    """Smallest scale cutoff strictly above current final % (next 'bracket up' in %)."""
     for t in _THRESHOLDS_ASC:
         if t > current_final_pct:
             return t
@@ -88,10 +63,7 @@ def next_threshold_pct(current_final_pct: float) -> float | None:
 
 
 def next_gpa_points(level: Level | str, current_final_pct: float) -> float | None:
-    """
-    Returns the GPA points you'd earn if you just reached the next bracket threshold.
-    Returns None if there's no higher bracket to reach.
-    """
+    """GPA points if final were exactly at next_threshold_pct (None if no higher % bracket)."""
     t = next_threshold_pct(current_final_pct)
     if t is None:
         return None
