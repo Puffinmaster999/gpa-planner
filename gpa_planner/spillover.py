@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from gpa_planner.course import W_REM, CourseInput
-from gpa_planner.gpa import max_achievable_gpa, weighted_gpa
+from gpa_planner.gpa import max_achievable_gpa, unweighted_gpa, weighted_gpa
 from gpa_planner.scale import gpa_points, next_threshold_pct, normalize_level
 
 
@@ -46,11 +46,13 @@ def run_spillover(
     courses: list[CourseInput],
     goal: float,
     *,
+    unweighted: bool = False,
     eps: float = 1e-5,
     max_steps: int = 2000,
 ) -> SpilloverResult:
     if not courses:
         raise ValueError("need at least one course")
+    g_fn = unweighted_gpa if unweighted else weighted_gpa
     X = [float(c.remainder_baseline) for c in courses]
     for c, x in zip(courses, X, strict=True):
         if not _optimizable(c):
@@ -58,15 +60,15 @@ def run_spillover(
         if x < 0 or x > 100:
             raise ValueError("remainder baseline must be in [0, 100]")
 
-    max_gpa = max_achievable_gpa(courses)
+    max_gpa = max_achievable_gpa(courses, unweighted=unweighted)
     baseline_finals = _finals_from_remainders(courses, X)
-    baseline_gpa = weighted_gpa(courses, baseline_finals)
+    baseline_gpa = g_fn(courses, baseline_finals)
 
     steps: list[SpilloverStep] = []
 
     for _ in range(max_steps):
         finals = _finals_from_remainders(courses, X)
-        wgpa = weighted_gpa(courses, finals)
+        wgpa = g_fn(courses, finals)
         if wgpa + eps >= goal:
             return SpilloverResult(
                 courses=courses,
@@ -95,7 +97,9 @@ def run_spillover(
                 continue
             lvl = normalize_level(c.level)
             new_f = S + W_REM * x_cap
-            if x_req <= 100 and gpa_points(lvl, new_f) <= gpa_points(lvl, f) + 1e-12:
+            pts_new = gpa_points("CP", new_f) if unweighted else gpa_points(lvl, new_f)
+            pts_old = gpa_points("CP", f) if unweighted else gpa_points(lvl, f)
+            if x_req <= 100 and pts_new <= pts_old + 1e-12:
                 continue
             if x_req > 100 and X[i] >= 100 - 1e-9:
                 continue
@@ -107,7 +111,7 @@ def run_spillover(
                 courses=courses,
                 goal=goal,
                 baseline_gpa=baseline_gpa,
-                final_gpa=weighted_gpa(courses, finals),
+                final_gpa=g_fn(courses, finals),
                 remainders=list(X),
                 finals=finals,
                 steps=steps,
@@ -142,14 +146,15 @@ def run_spillover(
         X[i] = x_after
 
     finals = _finals_from_remainders(courses, X)
+    final_w = g_fn(courses, finals)
     return SpilloverResult(
         courses=courses,
         goal=goal,
         baseline_gpa=baseline_gpa,
-        final_gpa=weighted_gpa(courses, finals),
+        final_gpa=final_w,
         remainders=list(X),
         finals=finals,
         steps=steps,
-        goal_reached=weighted_gpa(courses, finals) + eps >= goal,
+        goal_reached=final_w + eps >= goal,
         max_possible_gpa=max_gpa,
     )

@@ -7,7 +7,12 @@ import streamlit as st
 
 from gpa_planner.course import W_REM
 from gpa_planner.editor_parse import parse_courses_from_dataframe
-from gpa_planner.gpa import max_achievable_gpa, quality_point_deficit, weighted_gpa
+from gpa_planner.gpa import (
+    max_achievable_gpa,
+    quality_point_deficit,
+    unweighted_gpa,
+    weighted_gpa,
+)
 from gpa_planner.scale import next_threshold_pct
 from gpa_planner.sheet_import import read_uploaded_table
 from gpa_planner.spillover import run_spillover
@@ -48,14 +53,28 @@ if "class_table_df" not in st.session_state:
     st.session_state.class_table_df = _default_df()
 
 with st.sidebar:
+    st.header("GPA mode")
+    gpa_mode = st.radio(
+        "Calculation",
+        options=["weighted", "unweighted"],
+        format_func=lambda x: "Weighted" if x == "weighted" else "Unweighted",
+        index=0,
+        horizontal=True,
+        help="Unweighted uses the CP grade table for every class (max 4.0 on this scale).",
+    )
+    use_unweighted = gpa_mode == "unweighted"
     st.header("Goal")
+    _goal_max = 4.0 if use_unweighted else 5.0
+    # Separate widget keys so each mode keeps its own goal (unweighted max is 4.0).
+    _goal_key = "goal_gpa_unweighted" if use_unweighted else "goal_gpa_weighted"
     goal_gpa = st.number_input(
-        "Goal weighted GPA",
+        "Goal GPA",
         min_value=0.0,
-        max_value=5.0,
-        value=4.0,
+        max_value=_goal_max,
+        value=3.8 if use_unweighted else 4.0,
         step=0.01,
         format="%.2f",
+        key=_goal_key,
     )
     st.header("Baseline remainder (Q4 + F1)")
     baseline_mode = st.radio(
@@ -151,7 +170,7 @@ run = st.button("Calculate plan", type="primary")
 if not run:
     st.info(
         "**Placeholders:** rows with no Q1–Q3/E1 and no **Course %** stay in the table but are "
-        "**skipped** for GPA until you add grades. **Doesn’t Count** never affects weighted GPA."
+        "**skipped** for GPA until you add grades. **Doesn’t Count** never affects GPA."
     )
     st.stop()
 
@@ -171,35 +190,40 @@ if not courses:
     st.stop()
 
 counted_n = sum(1 for c in courses if c.counts_for_gpa)
-st.caption(f"**{counted_n}** of **{len(courses)}** rows count toward weighted GPA (others are placeholders or “Doesn’t Count”).")
+_mode_label = "unweighted" if use_unweighted else "weighted"
+st.caption(
+    f"**{counted_n}** of **{len(courses)}** rows count toward {_mode_label} GPA "
+    "(others are placeholders or “Doesn’t Count”)."
+)
 
 try:
-    max_g = max_achievable_gpa(courses)
+    max_g = max_achievable_gpa(courses, unweighted=use_unweighted)
 except ValueError as e:
     st.error(str(e))
     st.stop()
 
 baseline_finals = [c.final_from_remainder(c.remainder_baseline) for c in courses]
-baseline_w = weighted_gpa(courses, baseline_finals)
-deficit = quality_point_deficit(goal_gpa, courses, baseline_finals)
+_gpa_fn = unweighted_gpa if use_unweighted else weighted_gpa
+baseline_w = _gpa_fn(courses, baseline_finals)
+deficit = quality_point_deficit(goal_gpa, courses, baseline_finals, unweighted=use_unweighted)
 
 col_a, col_b, col_c, col_d = st.columns(4)
-col_a.metric("Baseline weighted GPA", f"{baseline_w:.4f}")
+col_a.metric(f"Baseline {_mode_label} GPA", f"{baseline_w:.4f}")
 col_b.metric("Goal", f"{goal_gpa:.4f}")
 col_c.metric("Max possible (100% remainder on planning rows)", f"{max_g:.4f}")
 col_d.metric("Quality-point gap (baseline)", f"{deficit:+.4f}", help="goal×Σc − Σ(c×points); positive means you need more points.")
 
 if max_g + 1e-6 < goal_gpa:
     st.warning(
-        f"Even with **100%** on Q4+F1 in every planning row, weighted GPA tops out at **{max_g:.4f}**, "
+        f"Even with **100%** on Q4+F1 in every planning row, {_mode_label} GPA tops out at **{max_g:.4f}**, "
         f"which is below the goal **{goal_gpa:.4f}**."
     )
 
-result = run_spillover(courses, goal_gpa)
+result = run_spillover(courses, goal_gpa, unweighted=use_unweighted)
 
 st.subheader("After spillover plan")
 c1, c2, c3 = st.columns(3)
-c1.metric("Planned weighted GPA", f"{result.final_gpa:.4f}")
+c1.metric(f"Planned {_mode_label} GPA", f"{result.final_gpa:.4f}")
 c2.metric("Goal reached", "Yes" if result.goal_reached else "No")
 c3.metric("Steps", len(result.steps))
 
