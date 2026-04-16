@@ -34,7 +34,6 @@ def _default_df() -> pd.DataFrame:
                 "Q4 %": float("nan"),
                 "F1 %": float("nan"),
                 "Course %": float("nan"),
-                "Remainder %": float("nan"),
             }
             for i in range(DEFAULT_ROWS)
         ]
