@@ -51,6 +51,8 @@ st.caption(
 
 if "class_table_df" not in st.session_state:
     st.session_state.class_table_df = _default_df()
+if "class_table_editor" not in st.session_state:
+    st.session_state.class_table_editor = st.session_state.class_table_df.copy()
 
 with st.sidebar:
     st.header("GPA mode")
@@ -101,11 +103,13 @@ with st.sidebar:
             raw = uploaded.read()
             imported = read_uploaded_table(raw, uploaded.name)
             st.session_state.class_table_df = imported
+            st.session_state.class_table_editor = imported.copy()
             st.success(f"Loaded **{len(imported)}** rows. Edit below if needed, then calculate.")
         except Exception as e:
             st.error(str(e))
     if st.button("Reset table to sample rows"):
         st.session_state.class_table_df = _default_df()
+        st.session_state.class_table_editor = st.session_state.class_table_df.copy()
         st.rerun()
     st.markdown("---")
     st.markdown("Then click **Calculate plan** in the main panel →")
@@ -113,6 +117,7 @@ with st.sidebar:
 st.subheader("Classes")
 edited = st.data_editor(
     st.session_state.class_table_df,
+    key="class_table_editor",
     num_rows="dynamic",
     width="stretch",
     column_config={
@@ -163,7 +168,7 @@ edited = st.data_editor(
     },
     hide_index=True,
 )
-st.session_state.class_table_df = edited
+st.session_state.class_table_df = edited.copy()
 
 run = st.button("Calculate plan", type="primary")
 
