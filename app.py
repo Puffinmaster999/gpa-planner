@@ -26,16 +26,16 @@ def _default_df() -> pd.DataFrame:
                 "Grade": "",
                 "Class": f"Course {i + 1}",
                 "Term": "Full Year",
-                "Level": "AP",
+                "Level": "",
                 "Credits": 5.0,
-                "Q1 %": 90.0,
-                "Q2 %": 90.0,
-                "Q3 %": 90.0,
-                "E1 %": 90.0,
+                "Q1 %": float("nan"),
+                "Q2 %": float("nan"),
+                "Q3 %": float("nan"),
+                "E1 %": float("nan"),
                 "Q4 %": float("nan"),
                 "F1 %": float("nan"),
                 "Course %": float("nan"),
-                "Remainder %": 90.0,
+                "Remainder %": float("nan"),
             }
             for i in range(DEFAULT_ROWS)
         ]
@@ -59,8 +59,8 @@ st.set_page_config(page_title="GPA goal planner", layout="wide")
 st.title("GPA goal planner")
 st.caption(
     "Weights: Q1–Q4 = 22% each; E1 & F1 = 6% each. "
-    "Completed (Q1+Q2+Q3+E1) = 72%; remaining (Q4+F1) = 28%. "
     "For Semester (S1), use Q1+Q2+E1 only (normalized to the semester final); set credits to 2.5. "
+    "For Semester (S2), use Q3+Q4+F1 only (normalized to the semester final); set credits to 2.5."
     "If only some early grades are entered, the planner auto-infers baseline remainder from known weighted grades. "
     "Import a Google Sheet (CSV or Excel): **File → Download → Comma-separated values (.csv)**."
 )
@@ -78,7 +78,9 @@ with st.sidebar:
         format_func=lambda x: "Weighted" if x == "weighted" else "Unweighted",
         index=0,
         horizontal=True,
-        help="Unweighted uses the CP grade table for every class (max 4.0 on this scale).",
+        help="" \
+        "Unweighted uses the CP grade table for every class (max 4.0 on this scale)." \
+        "Weighted uses AP/Honors/CP tables based on each row’s Level (max 5.0 on this scale).",
     )
     use_unweighted = gpa_mode == "unweighted"
     st.header("Goal")
