@@ -41,6 +41,19 @@ def _default_df() -> pd.DataFrame:
     )
 
 
+def _sync_editor_to_df() -> None:
+    editor_value = st.session_state.get("class_table_editor")
+    if isinstance(editor_value, pd.DataFrame):
+        st.session_state.class_table_df = editor_value.copy()
+
+
+def _replace_table(df: pd.DataFrame) -> None:
+    st.session_state.class_table_df = df.copy()
+    # Clear widget-owned value so data_editor re-initializes from class_table_df.
+    if "class_table_editor" in st.session_state:
+        del st.session_state["class_table_editor"]
+
+
 st.set_page_config(page_title="GPA goal planner", layout="wide")
 st.title("GPA goal planner")
 st.caption(
@@ -104,13 +117,14 @@ with st.sidebar:
             try:
                 raw = uploaded.read()
                 imported = read_uploaded_table(raw, uploaded.name)
-                st.session_state.class_table_df = imported
+                _replace_table(imported)
                 st.session_state.last_import_sig = upload_sig
                 st.success(f"Loaded **{len(imported)}** rows. Edit below if needed, then calculate.")
+                st.rerun()
             except Exception as e:
                 st.error(str(e))
     if st.button("Reset table to sample rows"):
-        st.session_state.class_table_df = _default_df()
+        _replace_table(_default_df())
         st.session_state.last_import_sig = None
         st.rerun()
     st.markdown("---")
@@ -119,6 +133,8 @@ with st.sidebar:
 st.subheader("Classes")
 edited = st.data_editor(
     st.session_state.class_table_df,
+    key="class_table_editor",
+    on_change=_sync_editor_to_df,
     num_rows="dynamic",
     width="stretch",
     column_config={
@@ -169,7 +185,6 @@ edited = st.data_editor(
     },
     hide_index=True,
 )
-st.session_state.class_table_df = edited.copy()
 
 run = st.button("Calculate plan", type="primary")
 
