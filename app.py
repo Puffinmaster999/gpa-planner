@@ -97,20 +97,7 @@ with st.sidebar:
         step=0.01,
         format="%.2f",
         key=_goal_key,
-    )
-    st.header("Baseline remainder (Q4 + F1)")
-    baseline_mode = st.radio(
-        "How to set assumed Q4/F1 average before optimization",
-        options=[
-            "avg_q",
-            "column",
-        ],
-        format_func=lambda x: {
-            "avg_q": "Average of Q1–Q3 (per class)",
-            "column": "Use “Remainder %” column",
-        }[x],
-        index=0,
-    )
+    )   
     st.divider()
     uploaded = st.file_uploader(
         "Import sheet (.csv / .xlsx)",
