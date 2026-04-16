@@ -69,6 +69,9 @@ if "class_table_df" not in st.session_state:
 if "last_import_sig" not in st.session_state:
     st.session_state.last_import_sig = None
 
+if "table_key" not in st.session_state:
+    st.session_state.table_key = 0
+
 with st.sidebar:
     st.header("GPA mode")
     gpa_mode = st.radio(
@@ -142,8 +145,8 @@ with st.sidebar:
 st.subheader("Classes")
 edited = st.data_editor(
     st.session_state.class_table_df,
-    key="class_table_editor",
-    on_change=_sync_editor_to_df,
+    key=f"class_table_editor_{st.session_state.table_key}",
+    on_change=_sync_editor_to_df, 
     num_rows="dynamic",
     width="stretch",
     column_config={
@@ -208,7 +211,8 @@ for idx, row in edited.iterrows():
                 needs_rerun = True
 
 if needs_rerun:
-    _replace_table(edited)
+    st.session_state.class_table_df = edited
+    st.session_state.table_key += 1 
     st.rerun()
 # --------------------------------------
 
