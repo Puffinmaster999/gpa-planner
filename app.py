@@ -113,7 +113,6 @@ with st.sidebar:
 st.subheader("Classes")
 edited = st.data_editor(
     st.session_state.class_table_df,
-    key="class_table_editor",
     num_rows="dynamic",
     width="stretch",
     column_config={
