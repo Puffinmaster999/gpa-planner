@@ -152,9 +152,10 @@ edited = st.data_editor(
         "Class": st.column_config.TextColumn("Class", width="medium"),
         "Term": st.column_config.SelectboxColumn(
             "Term",
-            options=["Full Year", "Semester (S1)"],
+            options=["Full Year", "Semester (S1)", "Semester (S2)"],
             required=False,
-            help="Semester (S1) uses Q1 + Q2 + E1 as the final for this row.",
+            help="Semester (S1) uses Q1 + Q2 + E1 as the final for this row."
+            "Semester (S2) uses Q3 + Q4 + F1 as the final for this row.",
         ),
         "Level": st.column_config.SelectboxColumn(
             "Level",

@@ -6,7 +6,7 @@ import math
 
 import pandas as pd
 
-from gpa_planner.course import WQ, WE, W_REM, CourseInput, full_year_final_pct, semester_s1_final_pct
+from gpa_planner.course import WQ, WE, W_REM, CourseInput, full_year_final_pct, semester_s1_final_pct, semester_s2_final_pct
 from gpa_planner.scale import normalize_level
 
 
@@ -35,6 +35,12 @@ def _is_semester_s1(term_raw: object) -> bool:
         return False
     s = str(term_raw).strip().lower()
     return "semester" in s or s in {"s1", "sem", "half"}
+
+def _is_semester_s2(term_raw: object) -> bool:
+    if term_raw is None or (isinstance(term_raw, float) and pd.isna(term_raw)):
+        return False
+    s = str(term_raw).strip().lower()
+    return "semester" in s or s in {"s2", "sem", "half"}
 
 
 def _weighted_known_average(q1: float | None, q2: float | None, q3: float | None, e1: float | None) -> float | None:
@@ -80,6 +86,7 @@ def parse_courses_from_dataframe(
             errors.append(f"{name}: Credits must be a positive number.")
             continue
         is_semester_s1 = _is_semester_s1(r.get("Term", ""))
+        is_semester_s2 = _is_semester_s2(r.get("Term", ""))
 
         q1, q2, q3 = _cell_float(r, "Q1 %"), _cell_float(r, "Q2 %"), _cell_float(r, "Q3 %")
         e1 = _cell_float(r, "E1 %")
@@ -137,6 +144,41 @@ def parse_courses_from_dataframe(
                         counts_for_gpa=True,
                         locked=True,
                         fixed_final_pct=s1_pct,
+                    )
+                )
+
+
+
+            continue
+        if is_semester_s2:
+            if not all(x is not None for x in (q3, q4, f1)):
+                errors.append(f"{name}: Semester (S2) rows require Q3, Q4, and F1.")
+                continue
+            assert q3 is not None and q4 is not None and f1 is not None
+            try:
+                lvl = normalize_level(level_str if level_str else "CP")
+            except ValueError as e:
+                errors.append(f"{name}: {e}")
+                continue
+            for label, v in [("Q3", q3), ("Q4", q4), ("F1", f1)]:
+                if v < 0 or v > 100:
+                    errors.append(f"{name}: {label} must be 0–100.")
+                    break
+            else:
+                s2_pct = semester_s2_final_pct(q3, q4, f1)
+                courses.append(
+                    CourseInput(
+                        name=name,
+                        level=lvl,
+                        credits=credits,
+                        q1=0.0,
+                        q2=0.0,
+                        q3=0.0,
+                        e1=0.0,
+                        remainder_baseline=0.0,
+                        counts_for_gpa=True,
+                        locked=True,
+                        fixed_final_pct=s2_pct,
                     )
                 )
             continue

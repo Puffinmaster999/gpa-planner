@@ -19,6 +19,10 @@ def semester_s1_final_pct(q1: float, q2: float, e1: float) -> float:
     """Semester-1 final %, normalized from the full-year weighting model."""
     return (WQ * q1 + WQ * q2 + WE * e1) / W_S1
 
+def semester_s2_final_pct(q3: float, q4: float, f1: float) -> float:
+    """Semester-2 final %, normalized from the full-year weighting model."""
+    return (WQ * q3 + WQ * q4 + WE * f1) / W_S1
+
 
 @dataclass
 class CourseInput:
