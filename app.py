@@ -51,6 +51,8 @@ st.caption(
 
 if "class_table_df" not in st.session_state:
     st.session_state.class_table_df = _default_df()
+if "last_import_sig" not in st.session_state:
+    st.session_state.last_import_sig = None
 
 with st.sidebar:
     st.header("GPA mode")
@@ -97,15 +99,19 @@ with st.sidebar:
         "Empty grades and FALSE are treated as blanks. “Doesn’t Count” rows are excluded from GPA.",
     )
     if uploaded is not None:
-        try:
-            raw = uploaded.read()
-            imported = read_uploaded_table(raw, uploaded.name)
-            st.session_state.class_table_df = imported
-            st.success(f"Loaded **{len(imported)}** rows. Edit below if needed, then calculate.")
-        except Exception as e:
-            st.error(str(e))
+        upload_sig = f"{uploaded.name}:{uploaded.size}"
+        if st.session_state.last_import_sig != upload_sig:
+            try:
+                raw = uploaded.read()
+                imported = read_uploaded_table(raw, uploaded.name)
+                st.session_state.class_table_df = imported
+                st.session_state.last_import_sig = upload_sig
+                st.success(f"Loaded **{len(imported)}** rows. Edit below if needed, then calculate.")
+            except Exception as e:
+                st.error(str(e))
     if st.button("Reset table to sample rows"):
         st.session_state.class_table_df = _default_df()
+        st.session_state.last_import_sig = None
         st.rerun()
     st.markdown("---")
     st.markdown("Then click **Calculate plan** in the main panel →")
