@@ -13,6 +13,7 @@ from gpa_planner.gpa import (
     weighted_gpa,
 )
 from gpa_planner.scale import next_threshold_pct
+from gpa_planner.course import W_REM, CourseInput
 from gpa_planner.sheet_import import read_uploaded_table
 from gpa_planner.spillover import run_spillover
 
@@ -216,7 +217,7 @@ rows = edited.dropna(how="all", subset=["Class"])
 if rows.empty:
     st.error("Add at least one class row.")
     st.stop()
-    
+
 courses, errors = parse_courses_from_dataframe(rows, "avg_q")
 
 if errors:
