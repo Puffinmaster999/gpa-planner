@@ -5,7 +5,6 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 import numpy as np
-from gpa_planner.course import W_REM
 from gpa_planner.editor_parse import parse_courses_from_dataframe
 from gpa_planner.gpa import (
     max_achievable_gpa,
@@ -42,34 +41,10 @@ def _default_df() -> pd.DataFrame:
     )
 
 
-
-
 def _sync_editor_to_df() -> None:
     editor_value = st.session_state.get("class_table_editor")
     if isinstance(editor_value, pd.DataFrame):
-        df = editor_value.copy()
-        
-        # Loop through each row to apply our rules
-        for idx, row in df.iterrows():
-            term = str(row.get("Term", ""))
-            
-            # 1. Auto-set credits
-            if term == "Full Year":
-                df.at[idx, "Credits"] = 5.0
-            elif term in ["Semester (S1)", "Semester (S2)"]:
-                df.at[idx, "Credits"] = 2.5
-                
-            # 2. Clear unneeded cells based on term
-            if term == "Semester (S1)":
-                df.at[idx, "Q3 %"] = np.nan
-                df.at[idx, "Q4 %"] = np.nan
-                df.at[idx, "F1 %"] = np.nan
-            elif term == "Semester (S2)":
-                df.at[idx, "Q1 %"] = np.nan
-                df.at[idx, "Q2 %"] = np.nan
-                df.at[idx, "E1 %"] = np.nan
-                
-        st.session_state.class_table_df = df
+        st.session_state.class_table_df = editor_value.copy()
 
 
 def _replace_table(df: pd.DataFrame) -> None:
@@ -226,6 +201,37 @@ edited = st.data_editor(
     },
     hide_index=True,
 )
+
+needs_rerun = False
+
+for idx, row in edited.iterrows():
+    term = str(row.get("Term", ""))
+    
+    # 1. Auto-set credits
+    if term == "Full Year" and row.get("Credits") != 5.0:
+        edited.at[idx, "Credits"] = 5.0
+        needs_rerun = True
+    elif term in ["Semester (S1)", "Semester (S2)"] and row.get("Credits") != 2.5:
+        edited.at[idx, "Credits"] = 2.5
+        needs_rerun = True
+        
+    # 2. Clear unneeded cells
+    if term == "Semester (S1)":
+        for col in ["Q3 %", "Q4 %", "F1 %"]:
+            if pd.notna(row.get(col)): # If there is a number here, wipe it out
+                edited.at[idx, col] = np.nan
+                needs_rerun = True
+    elif term == "Semester (S2)":
+        for col in ["Q1 %", "Q2 %", "E1 %"]:
+            if pd.notna(row.get(col)):
+                edited.at[idx, col] = np.nan
+                needs_rerun = True
+
+# If we made any automatic changes, update the memory and refresh the UI
+if needs_rerun:
+    _replace_table(edited) # This uses your existing function to clear widget memory safely
+    st.rerun()
+# --------------------------------------
 
 run = st.button("Calculate plan", type="primary")
 
