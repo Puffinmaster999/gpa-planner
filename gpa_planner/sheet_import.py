@@ -173,8 +173,8 @@ def sheet_raw_to_editor_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 "Credits": credits,
                 "Q1 %": q1,
                 "Q2 %": q2,
-                "Q3 %": q3,
                 "E1 %": e1,
+                "Q3 %": q3,
                 "Q4 %": q4,
                 "F1 %": f1,
                 "Course %": course_pct,
@@ -183,7 +183,7 @@ def sheet_raw_to_editor_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     out = pd.DataFrame(rows)
-    for c in ["Q1 %", "Q2 %", "Q3 %", "E1 %", "Q4 %", "F1 %", "Course %"]:
+    for c in ["Q1 %", "Q2 %", "E1 %", "Q3 %", "Q4 %", "F1 %", "Course %"]:
         out[c] = out[c].apply(
             lambda x: float(x)
             if x is not None and not (isinstance(x, float) and math.isnan(x))
