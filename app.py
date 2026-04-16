@@ -175,6 +175,14 @@ edited = st.data_editor(
 
 needs_rerun = False
 
+# Helper function to catch ANY type of filled cell (numbers, strings, etc.)
+def has_value(x):
+    if pd.isna(x): 
+        return False
+    if isinstance(x, str) and str(x).strip() == "": 
+        return False
+    return True
+
 for idx, row in edited.iterrows():
     term = str(row.get("Term", ""))
     
@@ -182,24 +190,21 @@ for idx, row in edited.iterrows():
     if term == "Full Year" and row.get("Credits") != 5.0:
         edited.at[idx, "Credits"] = 5.0
         needs_rerun = True
-    elif (term == "Semester (S1)" or term == "Semester (S2)") and row.get("Credits") != 2.5:
+    elif term in ["Semester (S1)", "Semester (S2)"] and row.get("Credits") != 2.5:
         edited.at[idx, "Credits"] = 2.5
         needs_rerun = True
         
-    # 2. Clear unneeded cells (BULLETPROOF VERSION)
+    # 2. Clear unneeded cells using float("nan") to avoid Pandas conflicts
     if term == "Semester (S1)":
         for col in ["Q3 %", "Q4 %", "F1 %"]:
-            val = row.get(col)
-            # If it's a valid number, wipe it to None
-            if pd.to_numeric(val, errors='coerce') >= 0:
-                edited.at[idx, col] = None
+            if has_value(row.get(col)):
+                edited.at[idx, col] = float("nan")
                 needs_rerun = True
                 
     elif term == "Semester (S2)":
         for col in ["Q1 %", "Q2 %", "E1 %"]:
-            val = row.get(col)
-            if pd.to_numeric(val, errors='coerce') >= 0:
-                edited.at[idx, col] = None
+            if has_value(row.get(col)):
+                edited.at[idx, col] = float("nan")
                 needs_rerun = True
 
 if needs_rerun:
