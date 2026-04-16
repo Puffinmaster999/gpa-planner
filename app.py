@@ -216,8 +216,8 @@ rows = edited.dropna(how="all", subset=["Class"])
 if rows.empty:
     st.error("Add at least one class row.")
     st.stop()
-
-courses, errors = parse_courses_from_dataframe(rows, baseline_mode)
+    
+courses, errors = parse_courses_from_dataframe(rows, "avg_q")
 
 if errors:
     st.error("Fix the following:\n\n- " + "\n- ".join(errors))
