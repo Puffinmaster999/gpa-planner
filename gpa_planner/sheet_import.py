@@ -13,6 +13,7 @@ import pandas as pd
 EDITOR_COLUMNS = [
     "Grade",
     "Class",
+    "Term",
     "Level",
     "Credits",
     "Q1 %",
@@ -167,6 +168,7 @@ def sheet_raw_to_editor_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             {
                 "Grade": grade_str,
                 "Class": cls,
+                "Term": "Full Year",
                 "Level": typ,
                 "Credits": credits,
                 "Q1 %": q1,

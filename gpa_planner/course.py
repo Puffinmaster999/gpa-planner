@@ -7,11 +7,17 @@ from dataclasses import dataclass
 WQ = 0.22
 WE = 0.06
 W_REM = 0.28  # Q4 + F1
+W_S1 = WQ + WQ + WE  # Q1 + Q2 + E1 slice of a full-year course
 
 
 def full_year_final_pct(q1: float, q2: float, q3: float, q4: float, e1: float, f1: float) -> float:
     """Course % when all terms and exams are known (matches typical year weights)."""
     return WQ * (q1 + q2 + q3 + q4) + WE * (e1 + f1)
+
+
+def semester_s1_final_pct(q1: float, q2: float, e1: float) -> float:
+    """Semester-1 final %, normalized from the full-year weighting model."""
+    return (WQ * q1 + WQ * q2 + WE * e1) / W_S1
 
 
 @dataclass

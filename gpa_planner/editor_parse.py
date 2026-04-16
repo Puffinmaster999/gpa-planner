@@ -6,7 +6,7 @@ import math
 
 import pandas as pd
 
-from gpa_planner.course import WQ, WE, W_REM, CourseInput, full_year_final_pct
+from gpa_planner.course import WQ, WE, W_REM, CourseInput, full_year_final_pct, semester_s1_final_pct
 from gpa_planner.scale import normalize_level
 
 
@@ -28,6 +28,33 @@ def _cell_float(row: pd.Series, key: str) -> float | None:
 def _is_doesnt_count(level_raw: str) -> bool:
     s = level_raw.strip().lower()
     return "doesn" in s or "not count" in s
+
+
+def _is_semester_s1(term_raw: object) -> bool:
+    if term_raw is None or (isinstance(term_raw, float) and pd.isna(term_raw)):
+        return False
+    s = str(term_raw).strip().lower()
+    return "semester" in s or s in {"s1", "sem", "half"}
+
+
+def _weighted_known_average(q1: float | None, q2: float | None, q3: float | None, e1: float | None) -> float | None:
+    num = 0.0
+    den = 0.0
+    if q1 is not None:
+        num += WQ * q1
+        den += WQ
+    if q2 is not None:
+        num += WQ * q2
+        den += WQ
+    if q3 is not None:
+        num += WQ * q3
+        den += WQ
+    if e1 is not None:
+        num += WE * e1
+        den += WE
+    if den <= 0:
+        return None
+    return num / den
 
 
 def parse_courses_from_dataframe(
@@ -52,6 +79,7 @@ def parse_courses_from_dataframe(
         if credits is None or credits <= 0:
             errors.append(f"{name}: Credits must be a positive number.")
             continue
+        is_semester_s1 = _is_semester_s1(r.get("Term", ""))
 
         q1, q2, q3 = _cell_float(r, "Q1 %"), _cell_float(r, "Q2 %"), _cell_float(r, "Q3 %")
         e1 = _cell_float(r, "E1 %")
@@ -59,6 +87,7 @@ def parse_courses_from_dataframe(
         rem_col = _cell_float(r, "Remainder %")
         course_pct = _cell_float(r, "Course %")
 
+        has_any_core = any(x is not None for x in (q1, q2, q3, e1))
         has_core = all(x is not None for x in (q1, q2, q3, e1))
         full_year = has_core and all(x is not None for x in (q4, f1))
 
@@ -77,6 +106,39 @@ def parse_courses_from_dataframe(
                     locked=True,
                 )
             )
+            continue
+
+        if is_semester_s1:
+            if not all(x is not None for x in (q1, q2, e1)):
+                errors.append(f"{name}: Semester (S1) rows require Q1, Q2, and E1.")
+                continue
+            assert q1 is not None and q2 is not None and e1 is not None
+            try:
+                lvl = normalize_level(level_str if level_str else "CP")
+            except ValueError as e:
+                errors.append(f"{name}: {e}")
+                continue
+            for label, v in [("Q1", q1), ("Q2", q2), ("E1", e1)]:
+                if v < 0 or v > 100:
+                    errors.append(f"{name}: {label} must be 0–100.")
+                    break
+            else:
+                s1_pct = semester_s1_final_pct(q1, q2, e1)
+                courses.append(
+                    CourseInput(
+                        name=name,
+                        level=lvl,
+                        credits=credits,
+                        q1=0.0,
+                        q2=0.0,
+                        q3=0.0,
+                        e1=0.0,
+                        remainder_baseline=0.0,
+                        counts_for_gpa=True,
+                        locked=True,
+                        fixed_final_pct=s1_pct,
+                    )
+                )
             continue
 
         if full_year:
@@ -111,25 +173,23 @@ def parse_courses_from_dataframe(
                 )
             continue
 
-        if has_core:
-            assert q1 is not None and q2 is not None and q3 is not None and e1 is not None
+        if has_any_core:
             try:
                 lvl = normalize_level(level_str if level_str else "CP")
             except ValueError as e:
                 errors.append(f"{name}: {e}")
                 continue
             for label, v in [("Q1", q1), ("Q2", q2), ("Q3", q3), ("E1", e1)]:
-                if v < 0 or v > 100:
+                if v is not None and (v < 0 or v > 100):
                     errors.append(f"{name}: {label} must be 0–100.")
                     break
             else:
+                inferred = _weighted_known_average(q1, q2, q3, e1)
+                assert inferred is not None
                 if baseline_mode == "avg_q":
-                    rem = (q1 + q2 + q3) / 3.0
+                    rem = inferred
                 else:
-                    if rem_col is None:
-                        errors.append(f"{name}: set Remainder % or use average-of-quarters baseline.")
-                        continue
-                    rem = rem_col
+                    rem = rem_col if rem_col is not None else inferred
                 if q4 is not None and (q4 < 0 or q4 > 100):
                     errors.append(f"{name}: Q4 must be 0–100.")
                     continue
@@ -139,15 +199,19 @@ def parse_courses_from_dataframe(
                 if rem < 0 or rem > 100:
                     errors.append(f"{name}: remainder must be 0–100.")
                     continue
+                q1v = q1 if q1 is not None else rem
+                q2v = q2 if q2 is not None else rem
+                q3v = q3 if q3 is not None else rem
+                e1v = e1 if e1 is not None else rem
                 courses.append(
                     CourseInput(
                         name=name,
                         level=lvl,
                         credits=credits,
-                        q1=q1,
-                        q2=q2,
-                        q3=q3,
-                        e1=e1,
+                        q1=q1v,
+                        q2=q2v,
+                        q3=q3v,
+                        e1=e1v,
                         remainder_baseline=rem,
                         counts_for_gpa=True,
                         locked=False,

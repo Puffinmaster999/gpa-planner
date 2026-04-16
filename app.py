@@ -25,6 +25,7 @@ def _default_df() -> pd.DataFrame:
             {
                 "Grade": "",
                 "Class": f"Course {i + 1}",
+                "Term": "Full Year",
                 "Level": "AP",
                 "Credits": 5.0,
                 "Q1 %": 90.0,
@@ -59,6 +60,8 @@ st.title("GPA goal planner")
 st.caption(
     "Weights: Q1–Q4 = 22% each; E1 & F1 = 6% each. "
     "Completed (Q1+Q2+Q3+E1) = 72%; remaining (Q4+F1) = 28%. "
+    "For Semester (S1), use Q1+Q2+E1 only (normalized to the semester final); set credits to 2.5. "
+    "If only some early grades are entered, the planner auto-infers baseline remainder from known weighted grades. "
     "Import a Google Sheet (CSV or Excel): **File → Download → Comma-separated values (.csv)**."
 )
 
@@ -111,6 +114,11 @@ with st.sidebar:
         help="Columns recognized: Grade, Class, Q1–Q4, E1, F1, Type, Weight, “Grade #”. "
         "Empty grades and FALSE are treated as blanks. “Doesn’t Count” rows are excluded from GPA.",
     )
+    st.link_button(
+        "Download template sheet",
+        "https://docs.google.com/spreadsheets/u/1/d/1FgQUba-fVAT2A74Lg6k4vwFkH1pElIH7UDeLQczioG0/copy",
+        help="Open a copy-ready Google Sheets template in a new tab.",
+    )
     if uploaded is not None:
         upload_sig = f"{uploaded.name}:{uploaded.size}"
         if st.session_state.last_import_sig != upload_sig:
@@ -140,6 +148,12 @@ edited = st.data_editor(
     column_config={
         "Grade": st.column_config.TextColumn("Grade", help="Optional (e.g. 9–12). Not used in math.", width="small"),
         "Class": st.column_config.TextColumn("Class", width="medium"),
+        "Term": st.column_config.SelectboxColumn(
+            "Term",
+            options=["Full Year", "Semester (S1)"],
+            required=False,
+            help="Semester (S1) uses Q1 + Q2 + E1 as the final for this row.",
+        ),
         "Level": st.column_config.SelectboxColumn(
             "Level",
             options=["AP", "Honors", "CP", "Doesn't Count", ""],
@@ -191,7 +205,8 @@ run = st.button("Calculate plan", type="primary")
 if not run:
     st.info(
         "**Placeholders:** rows with no Q1–Q3/E1 and no **Course %** stay in the table but are "
-        "**skipped** for GPA until you add grades. **Doesn’t Count** never affects GPA."
+        "**skipped** for GPA until you add grades. **Doesn’t Count** never affects GPA. "
+        "**Semester (S1)** rows count immediately when Q1, Q2, and E1 are present."
     )
     st.stop()
 

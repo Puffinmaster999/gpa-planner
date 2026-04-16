@@ -1,0 +1,374 @@
+# GPA Goal Planner — Wiki
+
+## Table of Contents
+
+- [Overview](#overview)
+- [How It Works](#how-it-works)
+- [Grade Weight System](#grade-weight-system)
+- [GPA Scale](#gpa-scale)
+- [Getting Started](#getting-started)
+- [Using the App](#using-the-app)
+- [Importing from Google Sheets](#importing-from-google-sheets)
+- [Project Structure](#project-structure)
+- [Module Reference](#module-reference)
+  - [gpa_planner/course.py](#gpa_plannercoursepy)
+  - [gpa_planner/scale.py](#gpa_plannerscalepy)
+  - [gpa_planner/gpa.py](#gpa_plannergpapy)
+  - [gpa_planner/editor_parse.py](#gpa_plannereditor_parsepy)
+  - [gpa_planner/sheet_import.py](#gpa_plannersheet_importpy)
+  - [gpa_planner/spillover.py](#gpa_plannerspilloverpy)
+  - [app.py](#apppy)
+- [Spillover Algorithm](#spillover-algorithm)
+- [Course Row States](#course-row-states)
+- [FAQ](#faq)
+
+---
+
+## Overview
+
+GPA Goal Planner is a Streamlit web app that calculates the minimum Q4 and final exam scores you need across your courses to hit a target GPA. It supports weighted and unweighted GPA, AP/Honors/CP course levels, and can import grade data directly from Google Sheets exports.
+
+---
+
+## How It Works
+
+1. You enter your classes with Q1–Q3 and midterm (E1) grades already completed.
+2. You set a goal GPA.
+3. The app runs a **greedy spillover algorithm** that figures out the minimum remaining scores (Q4 + Final Exam average) needed per class to reach your goal.
+4. Results are shown as a per-course plan, ranked from easiest to hardest improvement.
+
+---
+
+## Grade Weight System
+
+Each course's final percentage is calculated from six components:
+
+| Component | Weight | Notes |
+|-----------|--------|-------|
+| Q1 | 22% | Quarter 1 |
+| Q2 | 22% | Quarter 2 |
+| Q3 | 22% | Quarter 3 |
+| Q4 | 22% | Quarter 4 |
+| E1 (Midterm) | 6% | Mid-year exam |
+| F1 (Final Exam) | 6% | End-of-year exam |
+
+**Completed (Q1+Q2+Q3+E1) = 72%**
+**Remaining (Q4+F1) = 28%**
+
+The planner optimizes over the remaining 28% — specifically the *average* of Q4 and F1, referred to as the **remainder** (`X`).
+
+---
+
+## GPA Scale
+
+The app uses a custom scale with different point values per course level:
+
+| Min % | AP | Honors | CP |
+|-------|----|--------|----|
+| 98 | 5.0 | 4.5 | 4.0 |
+| 93 | 4.7 | 4.2 | 3.7 |
+| 90 | 4.5 | 4.0 | 3.5 |
+| 87 | 4.3 | 3.8 | 3.3 |
+| 83 | 4.0 | 3.5 | 3.0 |
+| 80 | 3.7 | 3.2 | 2.7 |
+| 77 | 3.4 | 2.9 | 2.4 |
+| 73 | 3.0 | 2.5 | 2.0 |
+| 70 | 2.7 | 2.2 | 1.7 |
+| 65 | 2.0 | 1.5 | 1.0 |
+| 0 | 0.0 | 0.0 | 0.0 |
+
+**Unweighted mode** uses the CP column for all courses regardless of level (max GPA = 4.0).
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10+
+- pip
+
+### Installation
+
+```bash
+git clone <repo-url>
+cd gpa-goal-planner
+pip install -r requirements.txt
+```
+
+### Running
+
+```bash
+streamlit run app.py
+```
+
+The app opens in your browser at `http://localhost:8501`.
+
+---
+
+## Using the App
+
+### The Class Table
+
+Each row represents one course. The columns are:
+
+| Column | Description |
+|--------|-------------|
+| **Grade** | Optional grade year (9–12). Not used in calculations. |
+| **Class** | Course name. |
+| **Level** | `AP`, `Honors`, `CP`, or `Doesn't Count`. |
+| **Credits** | Credit weight of the course (default 5.0). |
+| **Q1–Q3 %** | Percentage grades for quarters 1–3. |
+| **E1 %** | Midterm exam grade. |
+| **Q4 %** | Quarter 4 grade (optional — fill after the fact). |
+| **F1 %** | Final exam grade (optional — fill after the fact). |
+| **Course %** | Override: a direct final course percentage if quarter grades are unavailable. |
+| **Remainder %** | The assumed Q4+F1 average for planning (used when Baseline mode = "Use Remainder % column"). |
+
+### Sidebar Options
+
+- **GPA mode**: Weighted (uses AP/Honors/CP scale) or Unweighted (CP scale for all).
+- **Goal GPA**: Your target GPA (0–5.0 weighted, 0–4.0 unweighted).
+- **Baseline remainder**: How the starting Q4/F1 assumption is set — either as the average of Q1–Q3 per course, or from the "Remainder %" column.
+- **Import sheet**: Upload a `.csv` or `.xlsx` from Google Sheets.
+- **Reset table**: Restores the default sample rows.
+
+### Output Sections
+
+After clicking **Calculate plan**:
+
+- **Metrics row**: Baseline GPA, goal, max possible GPA, and quality-point gap.
+- **After spillover plan table**: Per-course planned final %, next GPA bracket %, and what remainder score would reach it.
+- **Spillover steps table**: The ordered list of incremental improvements the algorithm made, from easiest to hardest.
+
+---
+
+## Importing from Google Sheets
+
+1. Open your grade sheet in Google Sheets.
+2. Go to **File → Download → Comma-separated values (.csv)**.
+3. Upload via the sidebar uploader.
+
+Column names are mapped flexibly:
+
+| Recognized aliases | Canonical field |
+|--------------------|----------------|
+| `grade`, `yr`, `year` | Grade |
+| `class`, `course`, `subject` | Class |
+| `q1`, `quarter 1` | Q1 |
+| `q2`, `q 2`, `quarter 2` | Q2 |
+| `e1`, `midterm`, `midyear` | E1 |
+| `q3`, `q 3`, `quarter 3` | Q3 |
+| `q4`, `q 4`, `quarter 4` | Q4 |
+| `f1`, `f 1`, `final` | F1 |
+| `type`, `level`, `course type` | Level |
+| `weight`, `credits`, `cr` | Credits |
+| `grade #`, `course %`, `avg` | Course % |
+
+Cells containing `FALSE`, `N/A`, `-`, or empty strings are treated as blank. Rows with `Doesn't Count` as their type are excluded from GPA calculations but kept in the table.
+
+---
+
+## Project Structure
+
+```
+app.py                        # Streamlit UI
+gpa_planner/
+  __init__.py                 # Package version
+  course.py                   # CourseInput model and grade weight math
+  scale.py                    # GPA point conversion table (AP / Honors / CP)
+  gpa.py                      # Weighted and unweighted GPA calculation
+  editor_parse.py             # Converts editor DataFrame rows into CourseInput objects
+  sheet_import.py             # Google Sheets CSV/Excel importer and normalizer
+  spillover.py                # Greedy optimization algorithm
+requirements.txt
+README.md
+```
+
+---
+
+## Module Reference
+
+### `gpa_planner/course.py`
+
+Defines the grade weight constants and the `CourseInput` dataclass.
+
+**Constants:**
+- `WQ = 0.22` — weight per quarter
+- `WE = 0.06` — weight per exam
+- `W_REM = 0.28` — total weight of Q4 + F1 (the "remainder")
+
+**`CourseInput` fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | str | Display name |
+| `level` | str | `AP`, `Honors`, or `CP` |
+| `credits` | float | Credit weight |
+| `q1`, `q2`, `q3` | float | Quarter grades |
+| `e1` | float | Midterm grade |
+| `remainder_baseline` | float | Assumed Q4+F1 average (0–100) |
+| `counts_for_gpa` | bool | Whether to include in GPA calculation |
+| `locked` | bool | If True, remainder is not changed by the optimizer |
+| `fixed_final_pct` | float or None | Overrides all calculation with a direct final % |
+
+**Methods:**
+- `completed_sum()` → float: Returns `WQ*(q1+q2+q3) + WE*e1`
+- `final_from_remainder(x)` → float: Returns `completed_sum() + W_REM * x` (or `fixed_final_pct` if set)
+
+---
+
+### `gpa_planner/scale.py`
+
+Implements the GPA point lookup table.
+
+**Key functions:**
+
+- `normalize_level(level: str) -> Level`: Converts free-text level strings (`"hon"`, `"h"`, `"a.p."`, etc.) to `"AP"`, `"Honors"`, or `"CP"`. Raises `ValueError` for unknown values.
+- `gpa_points(level, pct) -> float`: Returns GPA points for a given course percentage and level by finding the highest threshold ≤ `pct`.
+- `next_threshold_pct(current_final_pct) -> float | None`: Returns the next GPA bracket cutoff above the current final %. Returns `None` if already at max.
+- `next_gpa_points(level, current_final_pct) -> float | None`: Returns GPA points at the next bracket, or `None` if already at max.
+
+---
+
+### `gpa_planner/gpa.py`
+
+Calculates GPA from a list of courses and their final percentages.
+
+**Functions:**
+
+- `weighted_gpa(courses, finals) -> float`: Σ(credits × points) / Σ(credits), using each course's actual level.
+- `unweighted_gpa(courses, finals) -> float`: Same formula, but all courses use the CP scale.
+- `quality_point_deficit(goal, courses, finals) -> float`: How many quality points you are short of the goal. Positive = need more points.
+- `max_achievable_gpa(courses) -> float`: GPA if every unlocked planning course achieves 100% on the remaining 28%.
+
+---
+
+### `gpa_planner/editor_parse.py`
+
+Converts the Streamlit `data_editor` DataFrame into `CourseInput` objects.
+
+**Function:** `parse_courses_from_dataframe(df, baseline_mode) -> (list[CourseInput], list[str])`
+
+Course rows are classified into one of these states (processed in order):
+
+1. **Doesn't Count** — `counts_for_gpa=False`, `locked=True`
+2. **Full year** (Q1–Q4 + E1 + F1 all present) — `locked=True`, remainder back-calculated
+3. **Has core** (Q1–Q3 + E1 present, Q4/F1 missing) — `locked=False`, optimizable; remainder set by baseline mode
+4. **Course % only** — `locked=True`, `fixed_final_pct` set
+5. **Placeholder** — no usable grades; `counts_for_gpa=False`, `locked=True`
+
+Returns a list of `CourseInput` objects and a list of validation error strings.
+
+---
+
+### `gpa_planner/sheet_import.py`
+
+Reads and normalizes CSV/Excel exports from Google Sheets.
+
+**Functions:**
+
+- `read_uploaded_table(file_bytes, filename) -> pd.DataFrame`: Entry point — reads `.csv` or `.xlsx` and returns a normalized editor-schema DataFrame.
+- `sheet_raw_to_editor_dataframe(df) -> pd.DataFrame`: Maps flexible sheet columns to the standard editor schema.
+- `coerce_grade_value(raw) -> float | None`: Converts any cell value to a float 0–100, or `None` for blanks/booleans/text.
+- `normalize_type_for_editor(raw) -> str`: Maps course type strings from the sheet to editor-compatible values (`AP`, `Honors`, `CP`, `Doesn't Count`).
+
+---
+
+### `gpa_planner/spillover.py`
+
+The core optimization algorithm.
+
+**Dataclasses:**
+
+- `SpilloverStep` — records one incremental improvement: which course, which bracket was targeted, remainder before/after, final % before/after.
+- `SpilloverResult` — the full result: final GPA, all course remainders and finals, list of steps, whether the goal was reached, and the max possible GPA.
+
+**Function:** `run_spillover(courses, goal, *, unweighted, eps, max_steps) -> SpilloverResult`
+
+See [Spillover Algorithm](#spillover-algorithm) for a detailed explanation.
+
+---
+
+### `app.py`
+
+The Streamlit UI layer. Manages session state for the course table, renders the data editor and sidebar controls, calls `parse_courses_from_dataframe` and `run_spillover`, and displays results.
+
+**Session state keys:**
+- `class_table_df` — the current course table as a DataFrame
+- `class_table_editor` — the widget-owned copy (deleted on import to force re-initialization)
+- `last_import_sig` — `"filename:size"` string to avoid re-importing the same file on re-render
+
+---
+
+## Spillover Algorithm
+
+The spillover algorithm in `spillover.py` uses a greedy approach to find the minimum score increases needed to reach the goal GPA.
+
+### Overview
+
+1. Start from each course's baseline remainder (assumed Q4+F1 average).
+2. At each step, check if the current GPA already meets the goal.
+3. If not, build a list of **candidates** — optimizable courses that are not yet at the top of their GPA bracket.
+4. For each candidate, calculate `x_req`: the remainder score needed to push that course into the next GPA bracket.
+5. Sort candidates by `(x_req, -credits)` — prefer the course that needs the smallest score increase, breaking ties by highest credit weight.
+6. Apply the cheapest improvement (cap at 100% if needed).
+7. Repeat until the goal is reached or no further improvements are possible.
+
+### Candidate Filtering
+
+A course is **skippable** (not a candidate) if:
+- `counts_for_gpa` is False
+- `locked` is True (year complete or fixed final %)
+- `fixed_final_pct` is set
+- Already at the top GPA bracket (no next threshold exists)
+- The required remainder would not actually increase the GPA points
+
+### Capping at 100%
+
+If `x_req > 100`, the course is still considered a candidate (it may contribute partial improvement), but `x_after` is capped at 100.0. `SpilloverStep.capped_at_100 = True` in this case.
+
+### Termination
+
+The algorithm stops when:
+- The GPA goal is met (`goal_reached = True`)
+- No candidates remain (`goal_reached = False`)
+- `max_steps` iterations are exceeded (default 2000) — a safeguard against infinite loops
+
+---
+
+## Course Row States
+
+Understanding how a row is classified helps when entering data:
+
+| Condition | State | Locked? | Optimizable? |
+|-----------|-------|---------|--------------|
+| Level = "Doesn't Count" | Excluded | Yes | No |
+| Q1–Q4 + E1 + F1 all filled | Full year complete | Yes | No |
+| Q1–Q3 + E1 filled, Q4/F1 missing | Planning row | No | **Yes** |
+| Only "Course %" filled | Fixed final | Yes | No |
+| No grades at all | Placeholder | Yes | No |
+
+Only **planning rows** have their remainder adjusted by the spillover algorithm.
+
+---
+
+## FAQ
+
+**Q: What does "Remainder %" mean?**
+The Q4+F1 average — a single number representing your assumed performance on the remaining 28% of your grade. The algorithm adjusts this per course to find the minimum needed to hit your goal.
+
+**Q: What is the difference between weighted and unweighted GPA?**
+Weighted GPA uses different point scales for AP, Honors, and CP courses (max 5.0 for AP). Unweighted GPA applies the CP scale to all courses regardless of level (max 4.0).
+
+**Q: Why is my course shown as "Placeholder"?**
+A row becomes a placeholder when it has no Q1–Q3/E1 grades and no "Course %" value. It stays in the table for reference but is excluded from GPA until you add grades.
+
+**Q: What does "Capped at 100%" mean in the spillover steps?**
+The algorithm tried to push a course into the next GPA bracket, but doing so would require a remainder score above 100%. The course is bumped to 100% instead, giving a partial improvement without reaching the bracket.
+
+**Q: Can I plan for a full year that's already done?**
+Yes — if you fill in both Q4 and F1 for a course, the row is automatically treated as locked (year complete). Its final % is fixed and won't be changed by the optimizer.
+
+**Q: Why does the algorithm sometimes not reach the goal?**
+Either the goal exceeds the maximum achievable GPA (shown in the metrics row), or the greedy algorithm stalled on an edge case. In the latter case, try lowering the goal slightly or reviewing your inputs for unusual grade configurations.
